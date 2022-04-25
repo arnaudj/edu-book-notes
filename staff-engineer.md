@@ -5,7 +5,6 @@ My highlights and notes from the book. For full content go to https://staffeng.c
 
 Another summary is available at: https://github.com/mgp/book-notes/blob/master/staff-engineer.markdown
 
-
 - [Staff engineer: leadership beyond the management track](#staff-engineer--leadership-beyond-the-management-track)
   * [Types of staff roles:](#types-of-staff-roles-)
     + [What do Staff engineers actually do?](#what-do-staff-engineers-actually-do-)
@@ -19,12 +18,18 @@ Another summary is available at: https://github.com/mgp/book-notes/blob/master/s
     + [Work on what matters](#work-on-what-matters)
     + [Writing engineering strategy](#writing-engineering-strategy)
       - [Write five design docs](#write-five-design-docs)
+        * [Designs docs at google](#designs-docs-at-google)
       - [Synthesize those five design docs into a strategy](#synthesize-those-five-design-docs-into-a-strategy)
       - [Extrapolate five strategies into a vision](#extrapolate-five-strategies-into-a-vision)
     + [Managing technical quality](#managing-technical-quality)
+      - [Ascending the staircase](#ascending-the-staircase)
+      - [Hot spots](#hot-spots)
+        * [How to work the policy](#how-to-work-the-policy)
+      - [Best practices](#best-practices)
+      - [Quality leverage points](#quality-leverage-points)
+      - [Technical vectors](#technical-vectors)
 
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
-
 
 ## Types of staff roles:
 - **tech lead**:
@@ -163,4 +168,91 @@ Ex strategies:
 
 ### Managing technical quality
 
-TBD
+Technical quality is a long-term game. There’s no such thing as winning, only learning and earning the chance to keep playing.
+
+- *fix the hot spots* that are causing immediate problems
+- *adopt best practices* that are known to improve quality
+- *prioritize leverage* points that preserve quality as your software changes
+- *align technical vectors* in how your organization changes software
+- *measure technical quality* to guide deeper investment
+- *spin up a technical quality team* to create systems and tools for quality
+- *run a quality program to measure*, track and create accountability
+
+#### Ascending the staircase
+
+Start with the easy solutions first (ex: code linting), then progress to more complex solutions.
+
+Goal is to iterate fast, to learn.
+
+Don't add process prematurely: it adds friction.
+
+Be open to try changes, and be prepared to drop if ineffective.
+
+#### Hot spots
+
+At first, identify the hot spot, measure, and focus on where the bulk of the issues happen.
+
+Don't add to process lightly. Process is expensive: it changes how people work.
+
+If problems are created faster in the org that you can fix them, then adopt best practices.
+
+##### How to work the policy
+Related: [How to work the policy, and not exceptions](https://lethain.com/work-policy-not-exceptions/)
+
+Policy is supported via constraints. To support it, you have to hold these.
+
+Don't revise the policy at each escalation: at a sufficiently high rate of change, policy is indistinguishable from exception.
+
+Instead: batch escalations, and revise the policy at a future time.
+
+Some challenges:
+- Accepting the reduced opportunity space
+- Locally suboptimal: eg a team may have to work under challenging circumstances to support a broader goal. The team gets limited benefit from it, and you have to stick with the decision at real personal cost for the folks impacted.
+
+#### Best practices
+
+Adopting best practices requires a level of organizational and leadership maturity that takes some time to develop.
+
+Good process is [evolved](https://lethain.com/good-process-is-evolved/) rather than designed: don't rush it, don't expect it to be finalized on day 1:
+
+
+- Study how other companies adopt similar practices. 
+- Document the approach.
+- Start with a few engaged teams.
+- Improve the doc based on challenges.
+- Roll out further
+
+Limit concurrent best practices rollouts: 
+- too much: it dilutes attention and priority
+- it is better to adjust few variables independently to understand their effect. Useful if you need to rollback later
+- if you still need to add more: move to leverage points
+
+#### Quality leverage points
+
+Leverage points can be done w/out total organizational alignment.
+
+Points where extra investment preserves quality over time by
+- preventing gross quality failures
+- reducing the cost of future quality investments
+
+The 3 most impactful points:
+
+- interfaces: Durable interfaces expose all the underlying essential complexity and none of the underlying accidental complexity.
+
+- state: has inherent inertia, and gets more complex with more concerns of security, privacy, compliance, etc
+
+- data models: a good data model is rigid (ie, can't express unsupported states), and supports evolution.
+
+Deliberately challenge these:
+- interface: integrate 5 clients against a mock implementation  
+- state: exercise the failure modes
+- data model: represent 5 real scenarii
+
+If you still need more, it's time for broader organizational alignment.
+
+
+#### Technical vectors
+
+
+
+
