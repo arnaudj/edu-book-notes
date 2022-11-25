@@ -62,13 +62,12 @@ Other solutions: runtime: Bit, or build time (i.e, not dynamic): shared NPM libr
 
 Authors disclaimer: it's very complex: CORS, library versioning, and singletons, debugging.
 
-```
-Make no mistake; you will run into issues implementing Module Federation.
-Having strong debugging skills and debugging complex issues is a prerequisite for
-using federated modules successfully. This is not a core stability issue with Module
-Federation itself, which is battle tested, these are issues of library compatibility,
-deployment issues and more that are layered on top of Module Federation.
-```
+> Make no mistake; you will run into issues implementing Module Federation.
+> Having strong debugging skills and debugging complex issues is a prerequisite for
+>using federated modules successfully. This is not a core stability issue with Module
+>Federation itself, which is battle tested, these are issues of library compatibility,
+>deployment issues and more that are layered on top of Module Federation.
+
 
 ## 1.2 Micro-frontends (MFE) and module federation (MF)
 
@@ -106,3 +105,43 @@ Shared as singleton (to preserve internal state), with pinned version.
 Other dependencies are automatically shared (cf `...deps`).
 
 Most CSS-in-JS libs are also singletons, such as `@emotion/core`.
+
+## 1.3 Getting started with Create React App
+
+## 1.4 How module federation works
+
+### Build time
+Heavy lifting is done by 3 plugins
+
+- `ContainerPlugin`: create container entries with the specified exposed modules (`exposed`). Create the remote entry file (acts as app manifest, aka `scope`) Used by remotes.
+
+- `ContainerReferencePlugin`: manages the `remotes` listed in the config. Used by a host.
+
+- `SharePlugin`: managed the `shared` part of the config: handles versioning requirements (aka `overrides`). Used by host and remotes.
+
+
+Key files:
+
+- `remoteEntry.js`: the manifest and specialized runtime for the exported remote modules and any shared packages
+
+- `src_x_js.js': compiled JS code for a shared component *X*. Referenced in the `remoteEntry.js`
+
+- `vendors-node_modules_y_js.js': compiled JS code for a shared lib *Y* that supports an exposed component. Ex Y=react_index for react.
+
+These files are a) JS bundles required to run the application, b) JS bundles required for the remote modules
+
+It can overlap: for example, some vendor bundles like React are used in both cases.
+
+### Runtime
+
+> When the `remoteEntry.js` is loaded by the browser it registers a global variable with the name specified in the library key in the ModuleFederationPlugin configuration. This variable has two things in it, a get function that returns any of the remote modules, and an override function that manages all of the shared packages.
+
+E.g, given a remote nav exposing a runtime module Header:
+
+```javascript
+window.nav.get('Header').then(factory => console.log(factory()));
+```
+
+This outputs the module as defined in the Header implementation. 
+
+It will also *load any shared packages required* by this module, reusing already loaded ones, if any and if version matches.
