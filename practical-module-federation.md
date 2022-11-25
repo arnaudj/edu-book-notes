@@ -69,3 +69,40 @@ using federated modules successfully. This is not a core stability issue with Mo
 Federation itself, which is battle tested, these are issues of library compatibility,
 deployment issues and more that are layered on top of Module Federation.
 ```
+
+## 1.2 Micro-frontends (MFE) and module federation (MF)
+
+## Vocabulary
+Concepts:
+- `remotes`: the name of other federated module application(s) that the current application consumes from
+- `exposes`: the files the current application exposes as remotes to other applications
+- `shared`: a list of ilbraries shared with other applications, to support the entries in `exposes`.
+
+### How to configure
+In `webpack.config.js`'s section `plugins`: add a `ModuleFederationPlugin` instance.
+
+Restart your app to take changes into account.
+
+### Properly sharing react
+
+```javascript
+const deps = require("./package.json").dependencies;
+
+shared: {
+  ...deps,
+  react: {
+    singleton: true,
+    requiredVersion: deps.react,
+  },
+  "react-dom": {
+    singleton: true,
+    requiredVersion: deps["react-dom"],
+  },
+},
+```
+
+Shared as singleton (to preserve internal state), with pinned version.
+
+Other dependencies are automatically shared (cf `...deps`).
+
+Most CSS-in-JS libs are also singletons, such as `@emotion/core`.
