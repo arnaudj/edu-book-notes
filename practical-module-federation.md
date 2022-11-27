@@ -145,3 +145,12 @@ window.nav.get('Header').then(factory => console.log(factory()));
 This outputs the module as defined in the Header implementation. 
 
 It will also *load any shared packages required* by this module, reusing already loaded ones, if any and if version matches.
+
+## 1.5 Deploying federated modules
+
+Set `publicPath` based on where the module will be deployed (server, S3, CDN, ...)
+
+It can be adjusted based on webpack argument's `mode` / `env` vars, or set to `auto`.
+
+Same for `remotes`'s URLs. It's also possible to set `remotes`' origin dynamically at runtime with plugin [external-remotes-plugin](https://github.com/module-federation/external-remotes-plugin)
+
