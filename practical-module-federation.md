@@ -154,3 +154,73 @@ It can be adjusted based on webpack argument's `mode` / `env` vars, or set to `a
 
 Same for `remotes`'s URLs. It's also possible to set `remotes`' origin dynamically at runtime with plugin [external-remotes-plugin](https://github.com/module-federation/external-remotes-plugin)
 
+## 1.6 Resilient sharing of React components
+
+How to:
+- dynamic import with `React.lazy`
+- within an obligatory `React.Suspense`, with (optional) fallback content displayed during loading
+- within an `ErrorBoundary` for error handling (remote down, or remote code throwing an `Error`)
+
+```javascript
+// *important* bootstrap code:
+// A dedicated import() to give webpack an opportunity to process all imports, and load code for all remotes
+import("./App");
+```
+
+```javascript
+// App.jsx
+const Header = wrapComponent(React.lazy(() => import("nav/Header")));
+
+const App = () => (
+  <Header
+    error={<div>Error!</div>}
+    delayed={<div>Loading...</div>}
+    />
+);
+
+ReactDOM.render(<App />, document.getElementById("app"));
+```
+
+High Order Component for loading and error handling:
+```javascript
+const wrapComponent = (Component) => ({ error, delayed, ...props }) 
+=> (
+    <FederatedWrapper error={error} delayed={delayed}>
+      <Component {...props} />
+    </FederatedWrapper>
+);
+```
+
+```javascript
+// https://github.com/jherr/practical-module-federation-20/blob/main/part1-getting-started/resilient-sharing/packages/host/src/App.jsx
+class FederatedWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // logErrorToMyService(error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.error || <div>Something went wrong.</div>;
+    }
+
+    return (
+      <React.Suspense fallback={this.props.delayed || <div />}>
+        {this.props.children}
+      </React.Suspense>
+    );
+  }
+}
+```
+
+Nb: To avoid displaying the `Suspense`'s fallback again after initial load (e.g when navigating between 2 `Lazy` loaded components), use [Transitions](https://reactjs.org/docs/react-api.html#starttransition)
+
+> Transitions are a new concurrent feature introduced in React 18. They allow you to mark updates as transitions, which tells React that they can be interrupted and avoid going back to Suspense fallbacks for already visible content.
