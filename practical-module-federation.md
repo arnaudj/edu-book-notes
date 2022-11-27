@@ -75,7 +75,7 @@ Authors disclaimer: it's very complex: CORS, library versioning, and singletons,
 Concepts:
 - `remotes`: the name of other federated module application(s) that the current application consumes from
 - `exposes`: the files the current application exposes as remotes to other applications
-- `shared`: a list of ilbraries shared with other applications, to support the entries in `exposes`.
+- `shared`: a list of libraries shared with other applications, to support the entries in `exposes`.
 
 ### How to configure
 In `webpack.config.js`'s section `plugins`: add a `ModuleFederationPlugin` instance.
@@ -124,9 +124,9 @@ Key files:
 
 - `remoteEntry.js`: the manifest and specialized runtime for the exported remote modules and any shared packages
 
-- `src_x_js.js': compiled JS code for a shared component *X*. Referenced in the `remoteEntry.js`
+- `src_x_js.js`: compiled JS code for a shared component *X*. Referenced in the `remoteEntry.js`
 
-- `vendors-node_modules_y_js.js': compiled JS code for a shared lib *Y* that supports an exposed component. Ex Y=react_index for react.
+- `vendors-node_modules_y_js.js`: compiled JS code for a shared lib *Y* that supports an exposed component. Ex Y=react_index for react.
 
 These files are a) JS bundles required to run the application, b) JS bundles required for the remote modules
 
