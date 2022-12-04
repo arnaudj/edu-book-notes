@@ -437,3 +437,112 @@ const App = () => (
 );
 ReactDOM.render(<App />, document.getElementById("app"));
 ```
+
+
+## 1.8 Resilient function and static data sharing
+
+MF allows to share anything:
+
+- Primitives
+- Arrays
+- Objects
+- Functions
+- Classes
+
+It opens the door for A/B testing, feature flags, i18n strings, persist state management (local storate), etc
+
+Ex shared library with misc types:
+```javascript
+new ModuleFederationPlugin({
+  name: "logic",
+  filename: "remoteEntry.js",
+  remotes: {},
+  exposes: {
+    "./analyticsFunc": "./src/analyticsFunc",
+    "./arrayValue": "./src/arrayValue",
+    "./classExport": "./src/classExport",
+    "./objectValue": "./src/objectValue",
+    "./singleValue": "./src/singleValue",
+  },
+  shared: {},
+}),
+```
+
+## Primitives, Arrays, Objects
+
+```javascript
+export default "single value";
+```
+
+Usage within a module: async import, cached in local state, with Error case handled.s
+
+```javascript
+// nav/src/singleValue.js
+const SingleValue = () => {
+  const [singleValue, singleValueSet] = React.useState(null);
+  React.useEffect(() => {
+    import("logic/singleValue")
+      .then(({ default: value }) => singleValueSet(value))
+      .catch((err) => console.error(`Error getting single value: ${err}`));
+  }, []);
+  return <div>Single value: {singleValue}.</div>;
+};
+```
+
+## Function
+
+```javascript
+// nav/src/analyticsFunc.js
+export default (msg) => console.log(`Analytics msg: ${msg}`);
+```
+
+```javascript
+const analyticsFunc = import("logic/analyticsFunc");
+const sendAnalytics = (msg) => {
+  analyticsFunc
+    .then(({ default: analyticsFunc }) => analyticsFunc(msg))
+    .catch((err) => console.log(`Error sending analytics value: ${msg}`));
+};
+```
+
+Promise will resolve immediately if it has already been resolved.
+
+Same, with a generic high order function:
+```javascript
+const createAsyncFunc = (promise) => (...args) =>
+  promise
+    .then(({ default: func }) => func(...args))
+    .catch((err) =>
+      console.log(`Error sending value: ${JSON.stringify(args)}`)
+  );
+const sendAnalytics = createAsyncFunc(import("logic/analyticsFunc"));
+```
+
+## Class
+
+```javascript
+class MyClass {
+  constructor(value) {
+   this.value = value;
+  }
+  logString() {
+    console.log(`Logging ${this.value}`);
+  }
+}
+
+export default MyClass;
+```
+
+Usage
+```javascript
+const newClassObject = (...args) =>
+  import("logic/classExport")
+    .then(({ default: classRef }) => {
+      return new classRef(...args);
+    })
+    .catch((err) => console.log(`Error getting class: ${err}`));
+
+newClassObject("initial value").then((theObject) => {
+  theObject.logString();
+});
+```
