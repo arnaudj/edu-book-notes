@@ -224,3 +224,216 @@ class FederatedWrapper extends React.Component {
 Nb: To avoid displaying the `Suspense`'s fallback again after initial load (e.g when navigating between 2 `Lazy` loaded components), use [Transitions](https://reactjs.org/docs/react-api.html#starttransition)
 
 > Transitions are a new concurrent feature introduced in React 18. They allow you to mark updates as transitions, which tells React that they can be interrupted and avoid going back to Suspense fallbacks for already visible content.
+
+## 1.7 React state sharing options
+
+Use react and react-dom as singletons
+
+```javascript
+const deps = require("./package.json").dependencies;
+
+shared: {
+  ...deps,
+  react: {
+    singleton: true,
+    requiredVersion: deps.react,
+  },
+  "react-dom": {
+    singleton: true,
+    requiredVersion: deps["react-dom"],
+  },
+},
+```
+
+There are multiple options for state management, cf below and https://github.com/jherr/practical-module-federation-20/tree/main/part1-getting-started/state-sharing
+
+### useState
+
+Use props to pass the value and setter to the remote component.
+
+Host:
+```javascript
+const [itemCount, setItemCount] = useState(0);
+
+<React.Suspense fallback={<div />}>
+  <Header count={itemCount} onClear={() => setItemCount(0)} />
+</React.Suspense>
+```
+
+Remote:
+```javascript
+const Header = ({ count, onClear }) => {
+  return (
+    <header>
+      <div>Count is {count}</div>
+      <button onClick={onClear}>Clear</button>
+    </header>
+  );
+};
+```
+
+### useContext
+
+Pass via React's context to avoid props drilling.
+
+#### Sharing state
+
+The key is to use the *same instance* of the shared code because it's the *instance* that holds the global context for the state.
+
+In the example below, the state is provided by the `host`. 
+
+It could be extracted in a shared module, in case multiple applications need to provide it.
+
+#### Note: other pattern
+The official [module-federation-examples](https://github.com/module-federation/module-federation-examples/tree/master/shared-context) use a different pattern:
+
+State is stored in a shared module, and accessed by other components via `shared` libraries, with a `requiredVersion`:
+```javascript
+// packages/host/webpack.config.js
+new ModuleFederationPlugin({
+  name: 'app1',
+  remotes: {
+    app2: 'app2@http://localhost:3002/remoteEntry.js',
+  },
+  shared: [
+    'react',
+    'react-dom',
+    {
+      '@shared-context/shared-library': { //
+        import: '@shared-context/shared-library',
+        requiredVersion: require('../shared-library/package.json').version,
+      },
+    },
+  ],
+}),
+new HtmlWebpackPlugin({
+  template: './public/index.html',
+}),
+```
+
+
+#### Host
+
+```javascript
+// packages/host/src/store.js
+import React, { createContext, useContext, useState } from "react";
+
+const CountContext = createContext(0);
+
+export const CountProvider = ({ children }) => (
+  <CountContext.Provider value={useState(0)}>
+  {children}
+  </CountContext.Provider>
+);
+
+export const useCount = () => useContext(CountContext);
+```
+
+Then, `host` adds itself as a remote. This allows both `host` and `remote` to use the same instance of the `store` module, since it is imported via `remotes`.
+
+```javascript
+// packages/host/webpack.config.js
+new ModuleFederationPlugin({
+  name: "host",
+  filename: "remoteEntry.js",
+  remotes: {
+    "my-nav": "nav@http://localhost:3001/remoteEntry.js",
+    host: "host@http://localhost:3000/remoteEntry.js",
+  },
+  exposes: {
+    "./store": "./src/store",
+  },
+  shared: { ... },
+}),
+```
+
+Import store via "local" remote
+
+```javascript
+// packages/host/src/App.jsx
+import React, { useState } from "react";
+import ReactDOM from "react-dom";
+
+import Header from "my-nav/Header";
+import { CountProvider, useCount } from "host/store"; 
+const App = () => {
+  const [itemCount, setItemCount] = useCount();
+  const onAddToCart = () => {
+    setItemCount(itemCount + 1);
+  };
+  return (
+    <div>
+      <Header />
+      <button onClick={onAddToCart}
+      >
+        Buy me!
+      </button>
+      <div>Cart count is {itemCount}</div>
+    </div>
+  );
+};
+ReactDOM.render(
+  <CountProvider>
+    <App />
+  </CountProvider>,
+  document.getElementById("app")
+);
+```
+
+
+#### Remote
+
+Add remote to host:
+```javascript
+new ModuleFederationPlugin({
+  name: "nav",
+  filename: "remoteEntry.js",
+  remotes: {
+    host: "host@http://localhost:3000/remoteEntry.js", //
+  },
+  exposes: {
+    "./Header": "./src/Header",
+  },
+  shared: { ... },
+}),
+```
+
+Import useCount via host's remote:
+```javascript
+// packages/nav/src/Header.jsx
+import React from "react";
+import { useCount } from "host/store"; //
+
+const Header = () => {
+  const [count, setCount] = useCount();
+  return (
+    <header>
+      <div>Header - Cart count is {count}</div>
+      <button onClick={() => setCount(0)}>Clear</button>
+    </header>
+  );
+};
+export default Header;
+```
+
+Wrap App in the CountProvider
+```javascript
+// packages/nav/src/App.jsx
+
+import React from "react";
+import ReactDOM from "react-dom";
+
+import Header from "./Header";
+
+import { CountProvider } from "host/store"; //
+
+const App = () => (
+  <CountProvider>
+    <div>
+      <Header />
+      <div>Nav project</div>
+    </div>
+  </CountProvider>
+);
+ReactDOM.render(<App />, document.getElementById("app"));
+```
