@@ -1,6 +1,6 @@
 # Practical Module Federation
 
-My highlights and notes from the book. For full content go to https://module-federation.github.io/
+Highlights and notes from the book. For full content go to https://module-federation.github.io/
 
 
 ## 1.1 Micro-frontends (MFE) and module federation (MF)
@@ -73,8 +73,21 @@ Authors disclaimer: it's very complex: CORS, library versioning, and singletons,
 
 ## Vocabulary
 Concepts:
-- `remotes`: the name of other federated module application(s) that the current application consumes from
-- `exposes`: the files the current application exposes as remotes to other applications
+- `host`: the current running application that is hosting federated remote modules
+- `module`: smallest unit of shareable code
+- `remote`: reference to an external federated module
+- `remote module`: any file exported through MF
+- `scope`: <=> application. Every application is exported as one named scope
+- `shared`: a module shared from an application to a remote module
+- `exposed`: a module exported by the application for federation
+- `package`: an NPM package
+
+
+ ModuleFederationPlugin
+ - `name`: name of the `module` being exported
+ - `filename`: name for the remote entry
+ - `remotes`: the name of other federated module application(s) that the current application consumes from
+- `exposes`:  list of internal `module`s exposed as `federated modules` (ie, that the current application exposes as remotes to other applications)
 - `shared`: a list of libraries shared with other applications, to support the entries in `exposes`.
 
 ### How to configure
@@ -117,7 +130,7 @@ Heavy lifting is done by 3 plugins
 
 - `ContainerReferencePlugin`: manages the `remotes` listed in the config. Used by a host.
 
-- `SharePlugin`: managed the `shared` part of the config: handles versioning requirements (aka `overrides`). Used by host and remotes.
+- `SharePlugin`: manages the `shared` part of the config: handles versioning requirements (aka `overrides`). Used by host and remotes.
 
 
 Key files:
