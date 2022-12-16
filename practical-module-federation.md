@@ -758,3 +758,82 @@ Ex: this configuration tells Webpack that react is a singleton and it must be in
   }
 }
 ```
+
+## 2.1 Resilient header
+
+How to build a header that is
+- live shared among all websites that use it, without version bumps
+- resilient to errors
+
+Solution: MF to fetch a live version. In case of error, fallback to locally bundled version of the Header
+
+### Remote
+A project named Nav that exposes an `Header` module
+
+### Host
+
+package.json that imports nav as nav
+```javascript
+"dependencies": {
+  "nav": "1.0.0",
+  "react": "^17.0.2",
+  "react-dom": "^17.0.2"
+}
+```
+
+The remote `nav` is aliased `mf-nav`:
+```javascript
+new ModuleFederationPlugin({
+  name: "home",
+  filename: "remoteEntry.js",
+  remotes: {
+    "mf-nav": "nav@http://localhost:8081/remoteEntry.js",
+  },
+  exposes: {},
+  shared: { ... }, // Shared React dependencies
+}),
+```
+
+
+App.jsx
+```javascript
+const Header = React.lazy(() => import("mf-nav/Header"));
+const FallbackHeader = React.lazy(() => import("nav/build/Header"));
+
+class HeaderWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {}
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <React.Suspense fallback={<div>Loading fallback header</div>}>
+          <FallbackHeader />
+        </React.Suspense>
+      );
+    }
+
+    return (
+      <React.Suspense fallback={<div>Header loading</div>}>
+        <Header />
+      </React.Suspense>
+    );
+  }
+}
+
+const App = () => (
+  <div>
+    <HeaderWrapper />
+    <div>Hi</div>
+  </div>
+);
+```
+
