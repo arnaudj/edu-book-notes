@@ -837,3 +837,103 @@ const App = () => (
 );
 ```
 
+## 2.2 A/B Testing
+
+Case: A/B Testing between 2 frames
+
+### Host
+- contains 2 frames components (FrameA, Frame B)
+- lazy loads these frames. In real world experiments, this saves bandwidth, by loading only the required code
+
+```javascript
+const FrameA = React.lazy(() => import("host/FrameA"));
+const FrameB = React.lazy(() => import("host/FrameB"));
+```
+
+```javascript
+  new ModuleFederationPlugin({
+    name: "host",
+    filename: "remoteEntry.js",
+    remotes: {
+      host: "host@http://localhost:8080/remoteEntry.js",
+      "ab-manager": "ab_manager@http://localhost:8081/remoteEntry.js",
+    },
+    exposes: {
+      "./FrameA": "./src/FrameA",
+      "./FrameB": "./src/FrameB",
+    },
+    shared: {
+      ...deps,
+      react: {
+        singleton: true,
+        requiredVersion: deps.react,
+      },
+      "react-dom": {
+        singleton: true,
+        requiredVersion: deps["react-dom"],
+      },
+    },
+  }),
+  new HtmlWebPackPlugin({
+    template: "./src/index.html",
+  }),
+],
+};
+```
+
+### Remote (ab-manager)
+```javascript
+  new ModuleFederationPlugin({
+    name: "ab_manager",
+    filename: "remoteEntry.js",
+    remotes: {
+      "ab-manager": "ab_manager@http://localhost:8081/remoteEntry.js",
+    },
+    exposes: {
+      "./VariantChooser": "./src/VariantChooser",
+      "./variants": "./src/variants",
+    },
+    shared: {
+      ...deps,
+      react: {
+        singleton: true,
+        requiredVersion: deps.react,
+      },
+      "react-dom": {
+        singleton: true,
+        requiredVersion: deps["react-dom"],
+      },
+    },
+  }),
+  new HtmlWebPackPlugin({
+    template: "./src/index.html",
+  }),
+],
+```
+
+
+```javascript
+import React from "react";
+import variants from "ab-manager/variants";
+const chooseVariant = (test) => variants[test][Math.floor(Math.random() * variants[test].length)];
+
+const VariantChooser = ({ test, variant, variations, ...props }) => {
+
+  const [testVariant] = React.useState(variant || chooseVariant(test));
+  const Component = variations[testVariant];
+  return (
+    <React.Suspense fallback={<div>Loading variant</div>}>
+      <Component {...props} />
+    </React.Suspense>
+  );
+};
+export default VariantChooser;
+```
+
+Nb: variants are loaded from a (local) remote instead of a regular local import:
+> we are forcing the import to go through Module Federation. This ensures that variants.js gets split out from the VariantChooser.jsx code.
+> And that makes variants.js independently deployable. So it would be possible to push a new version of the ab-manager with only
+> the tests changed.
+
+
+
