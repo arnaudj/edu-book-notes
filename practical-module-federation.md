@@ -546,3 +546,174 @@ newClassObject("initial value").then((theObject) => {
   theObject.logString();
 });
 ```
+
+
+## 1.9 Dynamic loading of federated modules
+
+In that case, there is no fixed remote involved. Instead, the remoteEntry is dynamically loaded at runtime, then the code is run.
+
+### Remote
+
+Exposes a module "./Widget" under the scope "widget", with React as singleton.
+
+```javascript
+    new ModuleFederationPlugin({
+      name: "widget",
+      filename: "remoteEntry.js",
+      remotes: {},
+      exposes: {
+        "./Widget": "./src/Widget",
+      },
+      shared: {
+        ...deps,
+        react: {
+          singleton: true,
+          requiredVersion: deps.react,
+        },
+        "react-dom": {
+          singleton: true,
+          requiredVersion: deps["react-dom"],
+        },
+      },
+    }),
+```
+
+
+### Host
+
+No fixed remote
+```javascript
+  plugins: [
+    new ModuleFederationPlugin({
+      name: "host_wp5",
+      filename: "remoteEntry.js",
+      remotes: {},
+      exposes: {},
+      shared: {
+        ...deps,
+        react: {
+          singleton: true,
+          requiredVersion: deps.react,
+        },
+        "react-dom": {
+          singleton: true,
+          requiredVersion: deps["react-dom"],
+        },
+      },
+    }),
+```
+
+App.jsx
+```javascript
+const App = () => (
+  <div>
+    <div>Host page.</div>
+    <System
+      system={{
+        url: "http://localhost:8080/remoteEntry.js",
+        scope: "widget",
+        module: "./Widget",
+      }}
+    />
+  </div>
+);
+```
+
+Dynamic loading code:
+
+>This function is doing what import does. It’s using the scope (widget) and module
+>(./Widget) to get the module factory from the globally mounted object. Then it invokes
+>that factory and returns the module. This is just what React.lazy wants to see.
+
+>The reason that react is called out in particular is that React is a singleton that
+>requires that there is only a single instance on the page at a time. So this code initializes
+>the scope with the host pages React library instance so that the widget module avoids
+>loading its own version.
+
+
+```javascript
+function loadComponent(scope, module) {
+  return async () => {
+    await __webpack_init_sharing__("default");
+    const container = window[scope];
+    await container.init(__webpack_share_scopes__.default);
+    const factory = await window[scope].get(module);
+    const Module = factory();
+    return Module;
+  };
+}
+```
+
+
+```javascript
+const useDynamicScript = (args) => {
+  const [ready, setReady] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!args.url) {
+      return;
+    }
+
+    const element = document.createElement("script");
+
+    element.src = args.url;
+    element.type = "text/javascript";
+    element.async = true;
+
+    setReady(false);
+    setFailed(false);
+
+    element.onload = () => {
+      console.log(`Dynamic Script Loaded: ${args.url}`);
+      setReady(true);
+    };
+
+    element.onerror = () => {
+      console.error(`Dynamic Script Error: ${args.url}`);
+      setReady(false);
+      setFailed(true);
+    };
+
+    document.head.appendChild(element);
+
+    return () => {
+      console.log(`Dynamic Script Removed: ${args.url}`);
+      document.head.removeChild(element);
+    };
+  }, [args.url]);
+
+  return {
+    ready,
+    failed,
+  };
+};
+
+function System(props) {
+  const { ready, failed } = useDynamicScript({
+    url: props.system && props.system.url,
+  });
+
+  if (!props.system) {
+    return <h2>Not system specified</h2>;
+  }
+
+  if (!ready) {
+    return <h2>Loading dynamic script: {props.system.url}</h2>;
+  }
+
+  if (failed) {
+    return <h2>Failed to load dynamic script: {props.system.url}</h2>;
+  }
+
+  const Component = React.lazy(
+    loadComponent(props.system.scope, props.system.module)
+  );
+
+  return (
+    <React.Suspense fallback="Loading System">
+      <Component />
+    </React.Suspense>
+  );
+}
+```
