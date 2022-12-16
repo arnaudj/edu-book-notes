@@ -717,3 +717,44 @@ function System(props) {
   );
 }
 ```
+
+## 1.10 Shared libraries and versioning
+
+## version
+The version of the package.
+
+Ex: this configuration tells Webpack that react should be used at the specified semantic version.
+```javascript
+"shared": {
+  "react": {
+    version: "^16.12.0"
+  }
+}
+```
+
+## requiredVersion
+The version of the package that is required otherwise Webpack should use the fallback.
+
+Ex:
+```javascript
+"shared": {
+  "react": {
+    requiredVersion: "^16.12.0"
+  }
+}
+```
+
+## strictVersion
+The strictVersion flag tells Webpack to use the fallback if there is no version match. If the singleton flag is enabled and there is no fallback then Webpack will throw an error.
+
+
+Ex: this configuration tells Webpack that react is a singleton and it must be in the specified semantic version of "^16.12.0", and if nothing is available then fallback or throw
+```javascript
+"shared": {
+  "react": {
+    singleton: true,
+    strictVersion: true,
+    version: "^16.12.0"
+  }
+}
+```
