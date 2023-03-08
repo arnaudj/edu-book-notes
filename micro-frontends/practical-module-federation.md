@@ -733,8 +733,26 @@ function System(props) {
 
 ## 1.10 Shared libraries and versioning
 
-## version
-The version of the package.
+### import 
+type: false | string
+
+default: the property name
+
+If set: the provided module should be placed in the shared scope, and also act as a fallback module (in case no shared module is found in the shared scope or version isn't valid)
+
+False: no local version provided
+
+[Doc](https://webpack.js.org/plugins/module-federation-plugin/#import)
+
+### version
+type: false | string
+
+default: webpack uses the version from the package.json file of the dependency
+
+The version of the provided module. It allows webpack to replace lower matching versions, but not higher.
+
+[Doc](https://webpack.js.org/plugins/module-federation-plugin/#version)
+
 
 Ex: this configuration tells Webpack that react should be used at the specified semantic version.
 ```javascript
@@ -745,8 +763,17 @@ Ex: this configuration tells Webpack that react should be used at the specified 
 }
 ```
 
-## requiredVersion
-The version of the package that is required otherwise Webpack should use the fallback.
+### requiredVersion
+
+type: false | string
+
+default: undefined
+
+The required version of the shared module. Otherwise Webpack should use the fallback.
+
+It accepts semantic versioning. For example, "^1.2.3".
+
+Logs a warning when version is not valid.
 
 Ex:
 ```javascript
@@ -757,20 +784,49 @@ Ex:
 }
 ```
 
-## strictVersion
-The strictVersion flag tells Webpack to use the fallback if there is no version match. If the singleton flag is enabled and there is no fallback then Webpack will throw an error.
+[Doc](https://webpack.js.org/plugins/module-federation-plugin/#requiredVersion)
 
+### strictVersion
+type: boolean
 
-Ex: this configuration tells Webpack that react is a singleton and it must be in the specified semantic version of "^16.12.0", and if nothing is available then fallback or throw
-```javascript
-"shared": {
-  "react": {
-    singleton: true,
-    strictVersion: true,
-    version: "^16.12.0"
-  }
-}
-```
+When version is not valid, this option hints webpack to reject the shared module and use the fallback instead. 
+
+Webpack will throw an error for singletons or modules without fallback (import: false).
+
+It has no effect if there is no required version specified (requiredVersion)
+
+default: 
+- true when local fallback module is available and shared module is not a singleton
+- otherwise false
+
+[Doc](https://webpack.js.org/plugins/module-federation-plugin/#strictVersion)
+
+### singleton
+
+type: boolean
+
+default: false
+
+This hint only allows a single version of the shared module in the shared scope.
+
+In cases where there are multiple versions of the same dependency in the shared scope, the highest semantic version is used.
+
+Some libraries use a global internal state (e.g. react, react-dom). Thus, it is critical to have only one instance of the library running at a time.
+
+[Doc](https://webpack.js.org/plugins/module-federation-plugin/#singleton)
+
+### shareScope
+
+type: string
+
+The name of the shared scope.
+
+### shareKey
+
+type: string
+
+The requested shared module is looked up under this key from the shared scope.
+
 
 ## 2.1 Resilient header
 
