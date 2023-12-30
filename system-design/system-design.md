@@ -15,6 +15,9 @@
       - Availability
       - Reliability
       - Availability matrix
+  - System design - chapter 5: design consistent hashing
+    - Consistent hashing
+      - Basic approach: hash space and hash ring
 
 <!-- /TOC -->
 
@@ -121,3 +124,32 @@ Common metrics to measure reliability are:
 Variants can be derived by multiplying or dividing by 10 (eg 5 nines -> 4 nines: x10)
 
 - "Powers of 10" trick: per day: 4 nines allows 8.64 seconds per day: 8.64 * 10^(4-n) --- with n: number of nines
+
+## System design - chapter 5: design consistent hashing
+
+### Consistent hashing
+Quoted from Wikipedia: "Consistent hashing is a special kind of hashing such that when a
+hash table is re-sized and consistent hashing is used, only k/n keys need to be remapped on
+average, where k is the number of keys, and n is the number of slots. In contrast, in most
+traditional hash tables, a change in the number of array slots causes nearly all keys to be
+remapped [1]”.
+
+#### Basic approach: hash space and hash ring
+- Pick a hash function (eg, SHA-1’s output range goes from 0 to 2^160 - 1).
+- Collect both ends of the range to create a hash ring
+- Place servers on the ring (hash their IP/hostname): s0, s1..sN
+- A partition is the hash space between adjacent servers.
+- Place keys on the ring (hash their value): k0, k1..kN
+- Get key: to pick the server based on the key: go clockwise from the key position on the ring, until a server is reached
+- Add server: place the new server on the ring, and remap only the affected keys)
+ex: given s1->s2->s3->s0, adding s4 (s1->s2->s3->s4->s0): only keys between s3-s4 hashes are remapped from s0 to s4
+- Remove server: same concept
+
+Issues with basic approach:
+- server ranges may not have similar size (or become unbalanced after a server removal). To get a more balanced key distribution: have nodes get assigned to multiple positions in the circle (like in Dynamo) ([Cassandra paper](https://www.cs.cornell.edu/Projects/ladis2009/papers/lakshman-ladis2009.pdf))
+  - Each server ("node") maps to multiple virtual nodes on the ring ("tokens"): s0 represented by s0_0, s0_1..s0_N
+  - Standard deviation by number of virtual nodes:
+    - 100 vnodes: 10% std dev
+    - 200 vnodes: 5% std dev
+  - Trade off of more virtual nodes is memory usage.
+- Oblivious to the heterogeneity in the performance of nodes. [Cassandra paper](https://www.cs.cornell.edu/Projects/ladis2009/papers/lakshman-ladis2009.pdf) recommends to analyze load information on the ring and have lightly loaded nodes move on the ring to alleviate heavily loaded nodes.
