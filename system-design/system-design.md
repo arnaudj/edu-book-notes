@@ -18,6 +18,10 @@
   - System design - chapter 5: design consistent hashing
     - Consistent hashing
       - Basic approach: hash space and hash ring
+      - Extra notes: Dynamo consistent hashing strategies
+        - Dynamo - Strategy 1: T random tokens per node and partition by token value
+        - Dynamo - Strategy 2: T random tokens per node and equal sized partitions
+        - Dynamo - Strategy 3: Q/S tokens per node, equal-sized partitions
 
 <!-- /TOC -->
 
@@ -153,3 +157,57 @@ Issues with basic approach:
     - 200 vnodes: 5% std dev
   - Trade off of more virtual nodes is memory usage.
 - Oblivious to the heterogeneity in the performance of nodes. [Cassandra paper](https://www.cs.cornell.edu/Projects/ladis2009/papers/lakshman-ladis2009.pdf) recommends to analyze load information on the ring and have lightly loaded nodes move on the ring to alleviate heavily loaded nodes.
+
+#### Extra notes: Dynamo consistent hashing strategies
+This section details misc strategies from the [Dynamo: Amazon’s Highly Available Key-value Store](https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html) paper (2007).
+
+Variables memo from https://medium.com/omarelgabrys-blog/consistent-hashing-beyond-the-basics-525304a12ba:
+- N is the number of replicas for each data item, a common value is 3
+- R is the number of replicas to ack / reply to a read request
+- W is the number of replicas to ack / presist a write request
+- S is the number of nodes in the system
+
+##### Dynamo - Strategy 1: T random tokens per node and partition by token value
+Strategy 1 is the same as above *Basic approach*: each node is assigned T random "tokens".
+
+The fundamental issue with this strategy is that the schemes for data partitioning and data placement are intertwined: adding nodes to match trafic spike requires rebalacing:
+
+> For instance, in some cases, it is preferred to add more nodes to the system in 
+> order to handle an increase in request load. However, in this scenario, it is not 
+> possible to add nodes without affecting data partitioning. ([Dynamo](https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html))
+
+
+##### Dynamo - Strategy 2: T random tokens per node and equal sized partitions
+
+- Q equally sized partitions/ranges divide the hash space
+- Each node is assigned T random tokens. 
+- Q is usually set such that Q >> N and Q >> S*T
+  - N: number of replicas
+  - S: number of nodes in the system
+
+Quotes:
+- A partition is placed on the first N unique nodes that are encountered while walking the consistent hashing ring clockwise from the end of the partition
+- The tokens are only used to build the function that maps values in the hash space to the ordered lists of nodes and not to decide the partitioning
+
+- The primary advantages of this strategy are: 
+  - (i) decoupling of partitioning and partition placement
+  - (ii) enabling the possibility of changing the placement scheme at runtime.
+
+> However, the randomness of assigned T tokens, and therefore key ranges, are still a dilemma; Nodes handing data off scan their local persistence store leading to slower bootstrapping; recalculation of Merkle trees; and no easy way of taking snapshots.
+(https://medium.com/omarelgabrys-blog/consistent-hashing-beyond-the-basics-525304a12ba)
+
+##### Dynamo - Strategy 3: Q/S tokens per node, equal-sized partitions
+
+Similar to strategy 2:
+- Q equally sized partitions/ranges divide the hash space
+- placement of partition is decoupled from the partitioning scheme
+
+And specifically:
+- each node is assigned a number of tokens T = Q/S
+- when a server is added/removed, tokens are stolen/distributed (respect.) from/to the other nodes (to respect Q/S)
+
+Strategy 3 (vs 1 & 2) is advantageous and simpler to deploy for the following reasons:
+- (i) Faster bootstrapping/recovery: Since partition ranges are fixed, they can be stored in separate files, meaning a partition can be relocated as a unit by simply transferring the file (avoiding random accesses needed to locate specific items). 
+- (ii) Ease of archival: Periodical archiving of the dataset is a mandatory requirement for most of Amazon storage services.
+
+Disadvantage: changing the node membership requires coordination in order to preserve the properties required (Q/S).
