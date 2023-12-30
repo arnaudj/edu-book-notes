@@ -253,6 +253,35 @@ If you still need more, it's time for broader organizational alignment.
 
 #### Technical vectors
 
+Technical vectors point should be aligned and point towards the goal.
+
+To help align them:
+- give direct feedback: have a discussion to share your context and the person's. Give feedback. Start with this before changing process
+
+- refine your engineering strategy
+
+- have your approach reflected by tooling & workflows. Ex:
+  - block deploy to prod if the project has no on-call setup
+  - provisiong resources only through a website that requires a link to the service specification
+
+- train new hires during onboarding
+
+- Conway's law: org structure will be reflected in the technical structure
+
+- After all this: curate technology change: using architecture reviews, investment strategies, and a structured process for adopting new tools.
 
 
+If you still need more, it's time to move to heavier approaches. But first, measure.
 
+
+#### Measure technical quality
+
+Establish a definition of quality based on metrics. It should be adequate for your org. It will help people improve quality based on those metrics.
+
+The metrics should be measured by instrumentation / automated to track over time
+
+Ex: codebase LoC per file, pull request LoC, test coverage, files that changed in 50%+ of the pull requests, functions that own fine-grained locks
+
+Next step: decide between a *quality team* and a *quality program*
+
+#### Technical quality team
