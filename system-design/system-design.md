@@ -22,6 +22,18 @@
         - Dynamo - Strategy 1: T random tokens per node and partition by token value
         - Dynamo - Strategy 2: T random tokens per node and equal sized partitions
         - Dynamo - Strategy 3: Q/S tokens per node, equal-sized partitions
+  - System design - chapter 6: design a key value store
+    - CAP Theorem
+    - Data Partition
+    - Data Replication
+    - Consistency
+    - Reconciliation
+    - Handling failures
+      - Failure detection
+      - Handling temporary failures
+      - Handling permanent failures
+    - Write path
+    - Read path
 
 <!-- /TOC -->
 
@@ -211,3 +223,93 @@ Strategy 3 (vs 1 & 2) is advantageous and simpler to deploy for the following re
 - (ii) Ease of archival: Periodical archiving of the dataset is a mandatory requirement for most of Amazon storage services.
 
 Disadvantage: changing the node membership requires coordination in order to preserve the properties required (Q/S).
+
+## System design - chapter 6: design a key value store
+### CAP Theorem
+Can only have 2 of:
+- Consistency: all clients see the same data, regardless of the node they connect to
+- Availability: any client requesting data gets a response, even if some nodes are down
+- Partition tolerance: system operates despite network partition (some / all packets lost)
+
+Real distributed systems are CP/AP, because P is a must have as network can fail.
+
+### Data Partition
+Use a hash ring
+- Auto scaling based on load
+- Nodes heterogeneity can be reflected via number of virtual nodes for a given host.
+
+### Data Replication
+- Place replicas in different data centers connected via high speed networks 
+- Replicas: partition is replicated to the N next unique servers on the hash ring.
+
+### Consistency
+- Terminology
+  - N: number of replicas
+  - W: write qorum size (a write is successful if ACKed by W nodes)
+  - R: read qorum size (a read is successful if replied by R nodes)
+- Coordinator handles read/writes
+- W = 1, R = 1: low latency, but trade-off on consistency (low as well). 
+  - ℹ️ It's also possible to trade off durability for latency (ex Dynamo can wait for W-1 acks, W>1, but only 1 replica is instructed to actually persists to disk before replying)
+- R = 1, W = N: optimal for fast reads
+- R = N, W = 1: optimal for fast writes
+- W + R > N: strong consistency
+  - Usually N = 3, W = R = 2
+- W + R < N: weak consistency, that can be eventual consistency (Dynamo/Cassandra) via reconciliation
+
+### Reconciliation
+Via vector clocks:
+  - vector of [Si, Vi] (server/process id, counter on this server)
+  - Steps
+    - init: all counters in the vector are set to 0
+    - When a process has an internal event: it increments its own counter in the vector by one
+    - When a process sends a message: it increments its own counter in the vector by one + sends a copy of the vector with the message
+    - When a process receives a message: merges the receives vector with the local one: via max() element-wise. Then, it increments its own counter in the vector by one.
+  - Cases:
+    - Cn is ancestor of Cm iff: all counters of Cn <= counters of Cm
+      - ex D([s0, 1], [s1, 1])] < D([s0, 1], [s1, 2])
+    - Cn is sybling of Cm if there are counters such as: Cn < Cm and Cn > Cm
+      - ex D([s0, 2], [s1, 1])] and D([s0, 1], [s1, 2])
+      - This is a conflict, it requires semantic resolution (e.g client side) 
+  - Issue: grows rapidly in size as number of servers/processes increases. Can be truncated like Dynamo does without issue in prod.
+
+### Handling failures
+#### Failure detection
+- Detecting failures: via heartbeats, stored in a local table, and exchanged with other nodes.
+  - Either multicast (costly)
+  - Via Gossip protocol:
+    - Each node has a node membership list (nodeId to nodeHeartBeatCounter)
+    - Each node periodically increments its own counter
+    - Each node periodically sends hearbeats to random nodes, that propagate in turn to other node
+    - When heartbeat is received, membership list is updated to latest info
+    - Heartbeat timeout? node is considered offline, and info is propagated to other nodes.
+
+#### Handling temporary failures
+Once failures are detected via above gossip protocol, deploy measures:
+
+- Sloppy qorum:
+  - Ignore qorum requirements: first W/R healthy nodes are picked for write/read (offline nodes are ignored)
+- Hinted handoff:
+  - While a node A is unavailable, another node B will process its requests
+  - Once A is online again, B will provide it with the saved changes to achieve consistency (hinted handoff)
+  - ⚠️: can degrade overall system performance if too many nodes need hinted handoff.
+
+#### Handling permanent failures
+To keep replicas in sync, use an anti-entropy protocol.
+
+Efficient diff is made via Merkle Trees.
+
+Hash space is divided in buckets that contains keys. 
+
+Keys, and then buckets are hashed as part of a Merkle Tree.
+
+Real world ex: 1M buckets, with 1K keys per bucket.
+
+
+### Write path
+- Write to commit log and persist to disk
+- Write to in-memory cache
+  - once cache is full, data is flushed to disk as an SSTable (sorted string table)
+
+### Read path
+- Check in memory cache: if cache hit, then return data to client
+- Else, fetch from disk by doing a lookup in the persisted SSTables. Bloom filters are used to optimize (determines wich SSTables do **not** contain a key)
