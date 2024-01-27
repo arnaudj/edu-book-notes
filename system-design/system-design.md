@@ -34,6 +34,16 @@
       - Handling permanent failures
     - Write path
     - Read path
+- Other
+  - LMAX Disruptor
+    - Problems:
+      - 2.4 Cache lines
+      - 2.5. The Problems of Queues
+      - Write performance tests
+    - 3. Design of the LMAX Disruptor
+        - 3.1. Memory Allocation
+        - 3.3. Sequencing
+        - 3.4. Batching Effect
 
 <!-- /TOC -->
 
@@ -313,3 +323,80 @@ Real world ex: 1M buckets, with 1K keys per bucket.
 ### Read path
 - Check in memory cache: if cache hit, then return data to client
 - Else, fetch from disk by doing a lookup in the persisted SSTables. Bloom filters are used to optimize (determines wich SSTables do **not** contain a key)
+
+
+# Other
+## LMAX Disruptor
+
+https://lmax-exchange.github.io/disruptor/disruptor.html
+
+### Problems:
+
+#### 2.4 Cache lines
+> Caches are organised into cache-lines that are typically 32-256 bytes (commonly 64 bytes)
+
+> “false sharing”: If two variables are in the same cache line, and they are written to by different threads, then they present the same problems of write contention as if they were a single variable.
+
+Locks are expensive as they can lead to context switch
+- starts in user mode (CAS spin): lightweight lock ([JVM Locks](https://www.alibabacloud.com/blog/lets-talk-about-several-of-the-jvm-level-locks-in-java_596090))
+- as contention increases: lock get converted to native (heavyweight lock)
+  - user to kernel transition is time consuming
+  - thread is suspended and cache can get invalidated. 
+  > To deal with the write contention a queue often uses locks. But if a lock is used, that can cause a context switch to the kernel. When this happens the processor involved is likely to lose the data in its caches. (https://martinfowler.com/articles/lmax.html)
+
+
+> When accessing memory in a predictable manner CPUs are able to hide the latency cost of accessing main memory by predicting which memory is likely to be accessed next and pre-fetching it into the cache in the background. 
+> Only if the processors can detect a pattern of access such as walking memory with a predictable “stride”.
+> Strides typically have to be less than 2048 bytes in either direction to be noticed by the processor. 
+
+> Data structures like linked lists and trees ... are more widely distributed in memory with no predictable stride. 
+> Resulting in main memory accesses which can be more than 2 orders of magnitude less efficient.
+
+#### 2.5. The Problems of Queues
+> Queue implementations tend to have write contention on the head, tail, and size variables. When in use, queues are typically always close to full or close to empty due to the differences in pace between consumers and producers.
+
+> This propensity to be always full or always empty results in high levels of contention and/or expensive cache coherence. 
+> The problem is that even when the head and tail mechanisms are separated using different concurrent objects such as locks or CAS variables, they generally occupy the same cache-line.
+
+> The concerns of managing producers claiming the head of a queue, consumers claiming the tail, and the storage of nodes in between make the designs of concurrent implementations very complex to manage beyond using a single large-grain lock on the queue. Large grain locks on the whole queue for put and take operations are simple to implement but represent a significant bottleneck to throughput. 
+
+> The conclusion they came to was that to get the best caching behavior, you need a design that has only one core writing to any memory location[17]. Multiple readers are fine, processors often use special high-speed links between their caches. But queues fail the one-writer principle. (https://martinfowler.com/articles/lmax.html)
+
+#### Write performance tests
+> One particular lesson is the importance of writing tests against null components to ensure the performance test is fast enough to really measure what real components are doing. Writing fast test code is no easier than writing fast production code and it's too easy to get false results because the test isn't as fast as the component it's trying to measure. (https://martinfowler.com/articles/lmax.html)
+
+### 3. Design of the LMAX Disruptor
+
+> Rigorous separation of the concerns that we saw as being conflated in queues.
+> Any data should be owned by only one thread for write access, therefore eliminating write contention. That design became known as the “Disruptor”. It was so named because it had elements of similarity for dealing with graphs of dependencies to the concept of “Phasers” [4] in Java 7, introduced to support Fork-Join. https://docs.oracle.com/javase%2F8%2Fdocs%2Fapi%2F%2F/java/util/concurrent/Phaser.html
+
+
+##### 3.1. Memory Allocation
+Ring buffer, with long lived (ie, avoid GC) entries, contiguous in memory (cache striding)
+
+> All memory for the ring buffer is pre-allocated on start up. A ring-buffer can store either an array of pointers to entries or an array of structures representing the entries
+> This pre-allocation of entries eliminates issues in languages that support garbage collection, since the entries will be re-used and live for the duration of the Disruptor instance.
+
+> The memory for these entries is allocated at the same time and it is highly likely that it will be laid out contiguously in main memory and so support cache striding. 
+
+> Under heavy load queue-based systems... lead to a reduction in the rate of processing: allocated objects surviving longer than they should, thus being promoted beyond the young generation with generational garbage collectors. 
+> 1) the objects have to be copied between generations which cause latency jitter
+> 2) these objects have to be collected from the old generation which is typically a much more expensive operation and increases the likelihood of “stop the world” 
+
+
+##### 3.3. Sequencing
+
+> Producers claim the next slot in sequence when claiming an entry in the ring (simple counter in the case of only one producer) or an atomic counter updated using CAS operations in the case of multiple producers. Once a sequence value is claimed, this entry in the ring buffer is now available to be written to by the claiming producer. When the producer has finished updating the entry it can commit the changes by updating a separate counter which represents the cursor on the ring buffer for the latest entry available to consumers. The ring buffer cursor can be read and written in a busy spin by the producers using memory barrier without requiring a CAS operation as below.
+
+> Consumers wait for a given sequence to become available by using a memory barrier to read the cursor. 
+
+> Consumers each contain their own sequence which they update as they process entries from the ring buffer. These consumer sequences allow the producers to track consumers to prevent the ring from wrapping. 
+
+> Consumer sequences also allow consumers to coordinate work on the same entry in an ordered manner
+
+##### 3.4. Batching Effect
+
+> the consumer finds the ring buffer cursor has advanced a number of steps since it last checked it can process up to that sequence without getting involved in the concurrency mechanisms. This results in the lagging consumer quickly regaining pace with the producers when the producers burst ahead thus balancing the system.
+
+
+> For most systems, as load and contention increase there is an exponential increase in latency, the characteristic “J” curve. As load increases on the Disruptor, latency remains almost flat until saturation occurs of the memory sub-system.
