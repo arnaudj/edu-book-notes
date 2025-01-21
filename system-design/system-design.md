@@ -44,6 +44,18 @@
         - 3.1. Memory Allocation
         - 3.3. Sequencing
         - 3.4. Batching Effect
+  - System design - chapter 12: design a chat system
+    - 1. Establish design scope
+    - 2. Propose high-level design, and get buy-in
+      - Topology
+      - Storage
+      - Data model
+    - 3. Design deep dive
+      - Service discovery
+      - Message flow
+      - Online presence
+        - Online status fanout:
+    - 4. Wrap up
 
 <!-- /TOC -->
 
@@ -400,3 +412,103 @@ Ring buffer, with long lived (ie, avoid GC) entries, contiguous in memory (cache
 
 
 > For most systems, as load and contention increase there is an exponential increase in latency, the characteristic “J” curve. As load increases on the Disruptor, latency remains almost flat until saturation occurs of the memory sub-system.
+
+## System design - chapter 12: design a chat system
+
+### 1. Establish design scope
+* chat 1-1 and in group of max 100 users
+* Max msg size: 100KB
+* mobile and web
+* 50M DAU
+* Online presence
+* Unlimited chat history
+* Low latency
+* Push notifications
+
+
+Estimate concurrent users: 1M users using the app 10min during Peak Activity period of 4h: 1M * 10 / (4*60)
+
+### 2. Propose high-level design, and get buy-in
+* chat service handles msg send/recv
+* relay messages between recipients
+* buffers messages until recipient comes back online
+
+How to receive messages?
+* Long polling (HTTP)
+  * -: inefficient (when app is not used), can't tell if user is disconnected
+* selected: *WebSocket* (over HTTP)
+  * +: no firewall issues (uses std ports 80/443, after HTTP request is upgraded), bidirectional, less bandwith used (persistent connection) 
+
+Choice: chat servers: websockets for receiving and sending messages.
+
+#### Topology
+
+Stateless services, routed by load balancer based on request path:
+- load balancer in front of services:
+  - service discovery: returns list of chat servers DNS, based on load & cie
+  - authentication service
+  - group management
+  - user profile
+- DB: relational
+
+Stateful services (long lived user connections)
+- chat service instances
+- Push notification instances
+
+C10k problem: 1M concurrent users, at 10KB RAM/user -> 10GB RAM. Can fit a single node, but do not do it (single point of failure, high availability, etc)
+
+#### Storage
+Relational DB to store generic data (user profiles, settings, friends list)
+
+Non-relational DB to store chat messages
+- R/W ratio: ~= 1 for 1-1 conversations
+- Key-Value store: easy horizontal scaling, read are low latency (relational DB don't handle well long tail random reads)
+  - HBase (Fb messenger), Cassandra (Discord)
+
+#### Data model
+- Shard group chats based on some id (e.g, channel_id)
+- Message ordering: don't rely on timestamp (`created_at` timestamp) since it can be identical, but on message_id.
+- message_id requirements: message_id should be unique, and sortable. Can be done via global 64bit seq num generator like *Snowflake*, or local seq num generator (per group; easier to implement)
+
+
+### 3. Design deep dive
+
+#### Service discovery
+Recommends best server based on predefined criteria (geo location, load, etc), e.g via Apache Zookeper
+
+#### Message flow
+1-1 chats: cross chat server communication:
+- server 1 obtains a message id from the id generator. Pushes the msg to a sync queue, and stores it in KV store.
+- server 2: reads the message. Relayed to user if it is online, else a notification is sent (push notification servers)
+ 
+Cross device sync:
+Each device of an user maintains a `cur_max_msg_id` (last msg id received) and can get new msgs from the KV store.
+
+Small groups chat flow:
+- user A sends a message via server 1.
+- server 1 pushes it to each group member's sync msg queue (inbox)
+- +: simple flow since each user needs to check only own inbox
+- -: doesn't scale if lots of users
+
+#### Online presence
+Once client is connected via websocket, it's `status` & `last_active_at` are stored in KV store.
+
+To smooth temp. disconnections, and hearbeat mechanism is used (e.g, if no hbeat received after 30s, mark user as disconnected)
+
+##### Online status fanout:
+Done using a publish/subscribe model. Each friends pair maintains a channel.
+
+Given user A with friends B, C, D:
+- presence servers maintain channels for friends: A-B, A-C, A-D etc where A status changes are pushed.
+- friends subscribe to the right channel.
+
+Effective for small groups. Large ones require different model (e.g, fetch on group join, or manual refreshes)
+
+### 4. Wrap up
+Extra points:
+- support photo/videos (compression, cloud storage, thumbnails)
+- E2E encryption
+- improve load time (regions)
+- error handling, e.g
+  - server going down (Zookeper will provide new valid chat server address)
+  - msg resend (retry / queuing)
