@@ -1,6 +1,6 @@
 <!-- TOC -->
 
-- System Design - Alex Yu
+- System Design volume 1 - Alex Yu
   - Cheatsheet
     - Steps
     - QPS - Queries per second
@@ -65,7 +65,7 @@
 
 <!-- /TOC -->
 
-# System Design - Alex Yu
+# System Design volume 1 - Alex Yu
 
 ## Cheatsheet
 
