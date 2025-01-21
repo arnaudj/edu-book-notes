@@ -56,6 +56,9 @@
       - Online presence
         - Online status fanout:
     - 4. Wrap up
+  - System design - chapter 14: design Youtube
+    - 1. Establish design scope
+    - 3. Design deep dive
 
 <!-- /TOC -->
 
@@ -512,3 +515,31 @@ Extra points:
 - error handling, e.g
   - server going down (Zookeper will provide new valid chat server address)
   - msg resend (retry / queuing)
+
+
+## System design - chapter 14: design Youtube
+
+### 1. Establish design scope
+Focus on video uploading, and video streaming.
+
+Encoding format, terminology:
+- container: a bucket to store the video, audio, and meta-data. Ex: avi, mov, mp4
+- codec: algorithms to compress/decompress. Ex: VP9, H.264, HEVC
+
+### 3. Design deep dive
+Encoding concepts:
+
+- video bitrate: amount of data per unit of time (second)
+  - constant: same throughout entire video
+  - variable: adjusted based on the complexity of the scene
+  - adaptative: dynamically adjusted based on viewer's internet speed and device capabilities (netflix, youtube)
+- GOP: Group Of Pictures: used in most modern video encoding algos
+  - I Frame: intra codec frame / keyframe: picture coded independently of others
+  - P Frame: predictive coded frame: contains motion-compensated difference information relative to previously decoded frames
+  - B Frame: bipredictive coded frame: same as P Frame but can reference previous and future frames.
+  - How does GOP configuration impact video quality?
+    - > The shorter the GOP length, the fewer B and P frames exist between I frames. Remember that B and P frames offer us the most efficient compression, so in a lower bitrate movie, a short GOP length will result in poorer video quality. **A longer GOP length will compress the content more efficiently**, providing higher video quality at lower bit rates, but **at the expense of trading off random access points and error resiliency**. Most encodes typically use GOP lengths in the 1-2 second range.
+    (https://aws.amazon.com/blogs/media/part-1-back-to-basics-gops-explained/)
+
+Optimization:
+- clients can parallelize upload (aligned on GOP), and the rest of the pipeline can work on these chunks
