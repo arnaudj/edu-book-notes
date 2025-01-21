@@ -1,6 +1,9 @@
 <!-- TOC -->
 
 - System Design - Alex Yu
+  - Cheatsheet
+    - Steps
+    - QPS - Queries per second
   - System design - chapter 1: Scaling
     - NoSQL
     - Caching strategies
@@ -63,6 +66,29 @@
 <!-- /TOC -->
 
 # System Design - Alex Yu
+
+## Cheatsheet
+
+### Steps
+1. Establish design scope
+2. Propose high-level design, and get interviewer buy-in
+3. Design deep dive
+4. Wrap up
+
+### QPS - Queries per second
+Let:
+* DAU: daily active users
+* MAU: monthly active users
+
+Then:
+* Average Concurrent Users: $Average Concurrent Users = DAU * AvgSessionDuration(minutes) / NbMinutesPerDay(1440)$
+* Peak Concurrent Users:
+  * estimate: $2 * Average Concurrent Users$
+  * by peak activity length: $Peak Concurrent Users = DAU * AvgSessionDuration(minutes) / PeakActivityPeriod (minutes)$
+* QPS:
+  * $Average QPS = Average Concurrent Users * DailyQueriesPerUser$
+  * $Peak QPS = Peak Concurrent Users * DailyQueriesPerUser$
+
 ## System design - chapter 1: Scaling
 
 Tiers: web tier, database tier, cache tier
